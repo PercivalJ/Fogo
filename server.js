@@ -1,117 +1,104 @@
-// console.log function
-function c ( word ) {
-  console.log(word)
-}
+//===================
+//DECLARING VARIABLES
+//===================
+var express        = require( 'express' )
+var User           = require( './models/User.js' )
+var app            = express()
+var path           = require( "path" )
+var logger         = require( "morgan" )
+var bodyParser     = require( "body-parser" )
+var convoRouter    = require( './config/routes/conversationRoutes.js' )
+var usersRouter    = require( './config/routes/userRoutes.js' )
+var mongoose       = require( "mongoose" )
+var passport       = require( "passport" )
+var expressSession = require( "express-session" )
+var cookieParser   = require( "cookie-parser" )
+var PORT           = process.env.PORT || 3000
+var DB             = process.env.MONGOLAB_URI || 'mongodb://localhost:27017/fogo'
 
-// ===================
-// DECLARING VARIABLES
-// ===================
-var express             = require( 'express' )
-var app                 = express()
-var mongoose            = require( 'mongoose' )
-var User                = require( './models/User.js' )
-var logger              = require( 'morgan' )
-var bodyParser          = require( 'body-parser' )
-var port                = process.env.PORT         || 3000
-var DB                  = process.env.DATABASE_URL || 'mongodb://localhost:27017/fogo'
-var Conversation        = require( './models/Conversation.js' )
-var conversationsRouter = require( './config/routes/conversationRoutes.js' )
-var usersRouter         = require( './config/routes/userRoutes.js' )
-var passport            = require( 'passport' )
-var expressSession      = require( 'express-session' )
-var cookieParser        = require( 'cookie-parser' )
-var path                = require( 'path' )
-var methodOverride      = require( 'method-override' )
 
-// Connect to database
+
+//================
+//ROUTING
+//================
+// Mongoose Setup
 mongoose.connect( DB )
 
-// express Session and Passport Session
-app.use( expressSession( {
-  secret: 'mySecretKey',
-  resave: true,
-  saveUninitialized: true
-} ) )
 
+app.use( function( req, res, next ) {
+  global.user = req.user
+  next()  
+} )
+
+
+//=================
+// MIDDLEWARE
+//=================
+app.use( cookieParser() )
+app.use(
+	expressSession( {
+		secret: 'mySecretKey',
+		resave: true,
+		saveUninitialized: true
+	} )
+)
+
+app.use( function( req, res, next ) {
+  console.log( "User" )
+  console.log( req.user )
+  next()  
+} )
+
+//Sets up passport
 app.use( passport.initialize() )
 app.use( passport.session() )
 
-// ===================
-// MIDDLEWARE
-// ===================
-// parse application/json
-app.use( bodyParser.json() )
-// parse application/vnd.api+json as json
-app.use( bodyParser.json( { type: 'application/vnd.api+json' } ) )
-// parse application/x-www-form-urlencoded
-app.use( bodyParser.urlencoded( { extended: true } ) )
-// override with the X-HTTP-Method-Override header in the request. simulate DELETE/PUT 
-app.use( methodOverride( 'X-HTTP-Method-Override' ) )
-// set the static files location /public/img will be /img for users
-app.use( express.static( __dirname + '/public' ) ) 
-//Morgan logger for console requests
+//Logs on server and json parsing on input
 app.use( logger( 'dev' ) )
+app.use( bodyParser.json() )
+app.use( bodyParser.urlencoded( { extended: true } ) )
 
-// ===================
-// PASSPORT
-// ===================
+app.set( 'views', path.join( __dirname, 'views' ) )
+app.engine( 'ejs', require( 'ejs' ).renderFile )
+app.set( 'view engine', 'ejs' )
+
+app.use( express.static( __dirname + '/views' ) )
+
 // Setting up the Passport Strategies
-require( './config/passport' )( passport )
+require( './config/passport' )( passport );
 
-// Define sessions
-app.use( function ( req, res, next ) {
-  console.log('Hello')
-  // console.log( req.user )
-  global.user = req.user
-  console.log( global.user )
-  next()
+
+//Test route
+app.get( '/', function( req, res ) {
+    console.log( "1")
+    console.log( req.user )
+    res.render( 'login.ejs', { user: req.user } )
 } )
 
+//Path to authenticate user
+app.get(  '/auth/facebook', passport.authenticate( 'facebook', { scope: 'email' } ) )
 
-
-// ===================
-// ROUTES
-// ===================
-
-// create facebook request
-app.get( '/auth/facebook', passport.authenticate( 'facebook', { scope: 'email' } ) )
-
-// Route handler for facebook callback strategy
+//Path called after user gets back from facebook
 app.get( '/auth/facebook/callback',
-  // Tell passport what to do on success and failure
-  passport.authenticate( 'facebook', {
-    successRedirect: '/grantAccess',
-    failureRedirect: '/'
-  } )
-),
-//-----------
-//Server after successredirect 
-//adds token on success redirect
-app.get( '/grantAccess', function( req, res ) {
-        console.log( "We upm in here")
-        console.log( req.user )
-        res.redirect('/profile?access_token=' + req.user.fb.access_token)
+    passport.authenticate( 'facebook', { 
+        successRedirect: '/',
+        failureRedirect: '/'
     } )
+)
 
-//Log the user out
-app.get( '/logout', function ( req, res ) {
-  req.logout()
-  res.redirect( '/' )
+//Path to log user out
+app.get( '/logout', function( req, res ) {
+    req.logout()
+    res.redirect( '/' )
 } )
 
-app.get( '/map', function ( req, res ) {
-  res.sendFile( __dirname + '/views/map.html')
+app.get( '/addCon', function( req, res ) { 
+    res.render( 'in.ejs', { user: req.user } )
 } )
 
+
+
+app.use( '/api', convoRouter )
 app.use( '/api', usersRouter )
-app.use( '/api', conversationsRouter )
-// pass our application into our routes
-require( './config/routes/staticRoutes' )( app ) 
-// ===============
-// SERVER PORT
-// ==============
-app.listen( port )
-// shoutout to the user
-console.log( 'Magic happens on port ' + port )
-// expose app for angular 
-exports = module.exports = app
+
+app.listen( PORT )

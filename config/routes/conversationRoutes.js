@@ -3,20 +3,31 @@
 //===================
 var express                 = require( 'express' )
 var apiRouter               = express.Router()
-var Conversation            = require( '../../models/Conversation.js' )
-var conversationsController = require( '../../controllers/conversations.js' )
+var conversationsController = require( '../../controllers/conversationsController.js' )
 //=========
 //ROUTES
 //=========
 
+ function authenticatedUser( req, res, next ) {
+    // If the user is authenticated, then we continue the execution
+    if ( req.isAuthenticated() ) {
+        console.log( "USer authenticated!")
+        console.log( req.body)
+        return next();
+    }
+    console.log("Nope!")
+    // Otherwise the request is always redirected to the home page
+    res.redirect( '/' );
+  }
+
 apiRouter.route( '/conversations' )
-	.get( conversationsController.index )
-	.post( conversationsController.create )
+	.get( authenticatedUser, conversationsController.index )
+	.post( authenticatedUser, conversationsController.create )
 
 apiRouter.route( '/conversations/:convo_id' )
-	.get( conversationsController.show )
-	.patch( conversationsController.update )
-	.delete( conversationsController.destroy )	
+	.get( authenticatedUser, conversationsController.show )
+	.patch( authenticatedUser, conversationsController.update )
+	.delete( authenticatedUser, conversationsController.destroy )	
 	
 	
 	
